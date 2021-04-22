@@ -1,7 +1,8 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 
-namespace Posit
+namespace Unum
 {
     public class BitLattice
     {
@@ -26,6 +27,27 @@ namespace Posit
             this.size = size;
             data = new byte[(size + 8 - (size - 1) % 8 - 1)/8]; // least number of bytes that accomodate required (size) bits
             fields = new Dictionary<string, Field>();
+        }
+
+        public BitLattice(BitArray source)
+        {
+            this.size = (uint)source.Length;
+            data = new byte[(size + 8 - (size - 1) % 8 - 1) / 8]; // least number of bytes that accomodate required (size) bits
+            fields = new Dictionary<string, Field>();
+
+            for (int i = 0; i < source.Length; ++i)
+            {
+                this[i] = source[i];
+            }
+        }
+
+        public BitLattice(byte[] bytes)
+        {
+            size = (uint)bytes.Length * 8;
+            data = new byte[bytes.Length];
+            fields = new Dictionary<string, Field>();
+            for (int i = 0; i < data.Length; ++i)
+                data[i] = bytes[i];
         }
 
         public bool this[int i]
@@ -65,6 +87,11 @@ namespace Posit
             return (byte)(1 << (pos % 8));
         }
 
+        public BitArray ToBitArray()
+        {
+            return new BitArray(data);
+        }
+
         public override string ToString()
         {
             System.Text.StringBuilder sb = new System.Text.StringBuilder();
@@ -81,25 +108,12 @@ namespace Posit
             for (int i = 0; i < f.Length; ++i)
                 f[i] = ' ';
 
-
             //
             //   L2S(bit_i) = (size-1-bit_i)*tab
-            //   S2L(char_i) = 
             //
-
-            
-
+           
             foreach (string fname in fields.Keys)
             {
-                /*
-                for (int i = 0; i < fields[fname].length; ++i)
-                {
-                    int bit_i = fields[fname].position + i;
-                    int char_i = ((int)size - 1 - bit_i) * tab;
-                    f[char_i] = (i < fname.Length ? fname[i] : '-');
-                }
-                */
-
                 int bit_i_0 = fields[fname].position;
                 int bit_i_1 = fields[fname].position + fields[fname].length - 1;
                 int char_i_0 = ((int)size - 1 - bit_i_0) * tab;
@@ -108,18 +122,22 @@ namespace Posit
                 int ci0 = Math.Min(char_i_0, char_i_1);
                 int ci1 = Math.Max(char_i_0, char_i_1);
 
-                for (int ci = ci0; ci <= ci1; ++ci)
+                if (fields[fname].length > 1)
                 {
-                    if (ci == ci0)
-                        f[ci] = '[';
-                    else if (ci == ci1)
-                        f[ci] = ']';
-                    else if (ci >= ci0 + 2 && ci < ci0 + 2 + fname.Length)
-                        f[ci] = fname[ci - ci0 - 2];
-                    else
-                        f[ci] = '-';
+                    for (int ci = ci0; ci <= ci1; ++ci)
+                    {
+                        if (ci == ci0)
+                            f[ci] = '[';
+                        else if (ci == ci1)
+                            f[ci] = ']';
+                        else if (ci >= ci0 + 2 && ci < ci0 + 2 + fname.Length)
+                            f[ci] = fname[ci - ci0 - 2];
+                        else
+                            f[ci] = '-';
+                    }
                 }
-
+                else
+                    f[ci0] = fname[0];
             }
 
             sb.Append(new string(f));
