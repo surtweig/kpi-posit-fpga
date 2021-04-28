@@ -8,11 +8,11 @@ namespace Unum
     {
         public bool sign;
         public int regime;
-        public uint exponent;
-        public uint fraction;
+        public int exponent;
+        public int fraction;
         
-        private uint es;
-        private uint width;
+        private int es;
+        private int width;
 
         public const string SignField = "Sign";
         public const string RegimeField = "Regime";
@@ -20,7 +20,7 @@ namespace Unum
         public const string ExponentField = "Exponent";
         public const string FractionField = "Fraction";
 
-        public Posit(uint width, uint es)
+        public Posit(int width, int es)
         {
             if (es < 1 || es >= width)
                 throw new System.ArgumentException(string.Format("es={0} parameter cannot be less than 1 or more or equal to width={1}", es, width));
@@ -42,14 +42,14 @@ namespace Unum
         }
         */
 
-        public Posit(BitArray bits, uint es)
+        public Posit(BitArray bits, int es)
         {
             sign = false;
             regime = 0;
             exponent = 0;
             fraction = 0;
             this.es = es;
-            this.width = (uint)bits.Length;
+            this.width = bits.Length;
             Decode(bits);
         }
 
@@ -68,32 +68,32 @@ namespace Unum
             else
                 regimeSize = -regime;
 
-            int regimePosition = (int)width - 1 - regimeSize;
+            int regimePosition = width - 1 - regimeSize;
             int regimeTerminatorPosition = regimePosition - 1;
 
-            b.AddField(RegimeField, (uint)regimePosition, (uint)regimeSize);            
+            b.AddField(RegimeField, regimePosition, regimeSize);            
             for (int i = 0; i < regimeSize; ++i) 
             {
                 b[regimePosition + i] = regime >= 0; // writing regime
             }
-            b.AddField(TerminatorField, (uint)regimeTerminatorPosition, 1);
+            b.AddField(TerminatorField, regimeTerminatorPosition, 1);
             b[regimeTerminatorPosition] = regime < 0; // writing regime terminator
 
             // --- Exponent ---
-            int exponentSize = Math.Min((int)es, (int)width - 2 - regimeSize);
+            int exponentSize = Math.Min(es, width - 2 - regimeSize);
             if (exponentSize > 0)
             {
                 int exponentPosition = regimeTerminatorPosition - exponentSize;
-                b.AddField(ExponentField, (uint)exponentPosition, (uint)exponentSize);
-                b.SetUInt(ExponentField, exponent);
+                b.AddField(ExponentField, exponentPosition, exponentSize);
+                b.SetUint(ExponentField, (uint)exponent);
             }
 
             // --- Fraction ---
-            int fractionSize = Math.Max(0, (int)width - 2 - regimeSize - exponentSize);
+            int fractionSize = Math.Max(0, width - 2 - regimeSize - exponentSize);
             if (fractionSize > 0)
             {
-                b.AddField(FractionField, 0, (uint)fractionSize);
-                b.SetUInt(FractionField, fraction);
+                b.AddField(FractionField, 0, fractionSize);
+                b.SetUint(FractionField, (uint)fraction);
             }
 
             return b;
@@ -101,7 +101,17 @@ namespace Unum
 
         public void Decode(BitLattice bitLattice)
         {
-            
+            sign = bitLattice.GetBool(SignField);
+            if (bitLattice.GetBool(RegimeField))
+            {
+                regime = bitLattice.GetFieldLength(RegimeField) - 1;
+            }
+            else
+            {
+                regime = -bitLattice.GetFieldLength(RegimeField);
+            }
+            exponent = (int)bitLattice.GetUint(ExponentField);
+            fraction = (int)bitLattice.GetUint(FractionField);
         }
 
         public void Decode(BitArray bitArray)
@@ -110,13 +120,36 @@ namespace Unum
 
             bl.AddField(SignField, width - 1, 1);
 
-            int pos = (int)width - 2;
-            bool regimeBit = bl[(int)width - 2];
+            int pos = width - 2;
+            int regimeSize = 0;
+            bool regimeBit = bl[pos];
+
+            while (bl[pos] == regimeBit)
+            {
+                ++regimeSize;
+                --pos;
+            }
+
+            int regimePosition = pos+1;
+            bl.AddField(RegimeField, regimePosition, regimeSize);
+
+            int regimeTerminatorPosition = pos;
+            bl.AddField(TerminatorField, regimeTerminatorPosition, 1);
+
+            int exponentSize = Math.Min(pos, es);
+            int exponentPosition = pos - exponentSize;
+            bl.AddField(ExponentField, exponentPosition, exponentSize);
+            pos = exponentPosition;
+
+            if (pos > 0)
+            {
+                bl.AddField(FractionField, 0, pos);
+            }
 
             Decode(bl);
         }
 
-        private int IntPow(int x, uint pow)
+        private int IntPow(int x, int pow)
         {
             int ret = 1;
             while (pow != 0)
@@ -132,9 +165,9 @@ namespace Unum
         public float CalculatedValue()
         {
             /*
-            int useed = 2 << ((int)es - 1);
+            int useed = 2 << (es - 1);
             useed = 2 << (useed - 1);
-            int v = IntPow(useed, regime) * (2 << ((int)exponent - 1));
+            int v = IntPow(useed, regime) * (2 << (exponent - 1));
             return IntSign * v;
             */
             return 0f;
@@ -145,8 +178,8 @@ namespace Unum
             return 0f;
         }
 
-        public uint ES { get { return ES; } }
-        public uint Width { get { return width; } }
+        public int ES { get { return ES; } }
+        public int Width { get { return width; } }
 
         public int IntSign
         {

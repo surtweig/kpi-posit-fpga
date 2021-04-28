@@ -1,5 +1,7 @@
 ﻿using System;
 using Unum;
+using System.Collections.Generic;
+using System.Collections;
 
 namespace posit_csharp
 {
@@ -32,7 +34,17 @@ namespace posit_csharp
             p.regime = 4;
             p.exponent = 17;
             p.fraction = 123;
-            Console.WriteLine(p.Encode());
+
+            BitLattice pbl = p.Encode();
+            Console.WriteLine(pbl);
+            BitArray pbr = pbl.ToBitArray();
+
+            Posit p2 = new Posit(pbr, 8);
+            BitLattice pbl2 = p2.Encode();
+            Console.WriteLine(pbl2);
+
+
+
         }
     }
 }

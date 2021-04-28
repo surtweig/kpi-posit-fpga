@@ -11,18 +11,18 @@ namespace Unum
             public int position;
             public int length;
 
-            public Field(uint position, uint length)
+            public Field(int position, int length)
             {
-                this.position = (int)position;
-                this.length = (int)length;
+                this.position = position;
+                this.length = length;
             }
         }
 
         private byte[] data;
-        private uint size;
+        private int size;
         private Dictionary<string, Field> fields;
 
-        public BitLattice(uint size)
+        public BitLattice(int size)
         {
             this.size = size;
             data = new byte[(size + 8 - (size - 1) % 8 - 1)/8]; // least number of bytes that accomodate required (size) bits
@@ -31,7 +31,7 @@ namespace Unum
 
         public BitLattice(BitArray source)
         {
-            this.size = (uint)source.Length;
+            this.size = source.Length;
             data = new byte[(size + 8 - (size - 1) % 8 - 1) / 8]; // least number of bytes that accomodate required (size) bits
             fields = new Dictionary<string, Field>();
 
@@ -43,7 +43,7 @@ namespace Unum
 
         public BitLattice(byte[] bytes)
         {
-            size = (uint)bytes.Length * 8;
+            size = bytes.Length * 8;
             data = new byte[bytes.Length];
             fields = new Dictionary<string, Field>();
             for (int i = 0; i < data.Length; ++i)
@@ -69,7 +69,7 @@ namespace Unum
             }
         }
 
-        public void AddField(string name, uint position, uint length)
+        public void AddField(string name, int position, int length)
         {
             if (position + length <= size)
                 fields[name] = new Field(position, length);
@@ -92,19 +92,29 @@ namespace Unum
             return new BitArray(data);
         }
 
+        public int GetFieldPosition(string fieldName)
+        {
+            return fields[fieldName].position;
+        }
+
+        public int GetFieldLength(string fieldName)
+        {
+            return fields[fieldName].length;
+        }
+
         public override string ToString()
         {
             System.Text.StringBuilder sb = new System.Text.StringBuilder();
-            for (int i = (int)size-1; i >= 0; --i)
+            for (int i = size-1; i >= 0; --i)
                 sb.Append(i + "  " + (i>9 ? "" : " "));
             sb.Append("\n");
-            for (int i = (int)size - 1; i >= 0; --i)
+            for (int i = size - 1; i >= 0; --i)
                 sb.Append(this[i] ? "1   " : "0   ");
             sb.Append("\n");
 
             int tab = 4;
-            //string f = new string(' ', 5 * (int)size);
-            char[] f = new char[tab * (int)size];
+            //string f = new string(' ', 5 * size);
+            char[] f = new char[tab * size];
             for (int i = 0; i < f.Length; ++i)
                 f[i] = ' ';
 
@@ -116,8 +126,8 @@ namespace Unum
             {
                 int bit_i_0 = fields[fname].position;
                 int bit_i_1 = fields[fname].position + fields[fname].length - 1;
-                int char_i_0 = ((int)size - 1 - bit_i_0) * tab;
-                int char_i_1 = ((int)size - 1 - bit_i_1) * tab;
+                int char_i_0 = (size - 1 - bit_i_0) * tab;
+                int char_i_1 = (size - 1 - bit_i_1) * tab;
 
                 int ci0 = Math.Min(char_i_0, char_i_1);
                 int ci1 = Math.Max(char_i_0, char_i_1);
@@ -154,10 +164,10 @@ namespace Unum
             return this[fields[fieldName].position];
         }
 
-        public void SetUInt(string fieldName, uint value)
+        public void SetUint(string fieldName, uint value)
         {
             uint svalue = value;
-            uint firstBitMask = 1;
+            int firstBitMask = 1;
 
             for (int i = 0; i < fields[fieldName].length; ++i)
             {
@@ -167,7 +177,7 @@ namespace Unum
             }
         }
 
-        public uint GetUInt(string fieldName)
+        public uint GetUint(string fieldName)
         {
             uint svalue = 0;
             uint firstBitMask = 1;
