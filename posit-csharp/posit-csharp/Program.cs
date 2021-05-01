@@ -7,6 +7,39 @@ namespace posit_csharp
 {
     class Program
     {
+        static void positTestCalcValue()
+        {
+            //BitLattice bl = new BitLattice(16);
+            //bl.AddField(Posit.SignField, bl.Size - 1, 1);
+            //bl.AddField(Posit.RegimeField)
+            BitArray br = new BitArray(16);
+            byte[] bits = new byte[16] { 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0 };
+            for (int i = 0; i < bits.Length; ++i)
+                br.Set(i, bits[i] > 0);
+
+            Posit p = new Posit(br, 3);
+            BitLattice bl = p.Encode();
+            Console.WriteLine(string.Format("Value = {0}", p.CalculatedValue()));
+            Console.WriteLine(bl);
+        }
+
+        static void positTestFromFloat()
+        {
+            float x = 11347935.15625f;
+            BitLattice fbl = new BitLattice(BitConverter.GetBytes(x));
+            fbl.AddField("S", 31, 1);
+            fbl.AddField("Exponent", 23, 8);
+            fbl.AddField("Fraction", 0, 23);
+
+            Console.WriteLine(fbl);
+            Console.WriteLine();
+
+            Posit p = new Posit(x, 3);
+            BitLattice pbl = p.Encode();
+            Console.WriteLine(pbl);
+            Console.WriteLine(string.Format("f = {0} p = {0}", x, p.CalculatedValue()));
+        }
+
         static void Main(string[] args)
         {
             /*
@@ -20,6 +53,7 @@ namespace posit_csharp
             Console.Write(bitLattice);
             */
 
+            /*
             float x = 0.15625f;
             BitLattice bitLattice = new BitLattice(BitConverter.GetBytes(x));
             bitLattice.AddField("S", 31, 1);
@@ -42,9 +76,10 @@ namespace posit_csharp
             Posit p2 = new Posit(pbr, es);
             BitLattice pbl2 = p2.Encode();
             Console.WriteLine(pbl2);
+            */
 
-
-
+            //positTestCalcValue();
+            positTestFromFloat();
         }
     }
 }

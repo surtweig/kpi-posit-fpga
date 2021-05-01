@@ -69,6 +69,8 @@ namespace Unum
             }
         }
 
+        public int Size { get { return size; } }
+
         public void AddField(string name, int position, int length)
         {
             if (position + length <= size)
@@ -173,7 +175,6 @@ namespace Unum
         {
             uint svalue = value;
             int firstBitMask = 1;
-
             for (int i = 0; i < fields[fieldName].length; ++i)
             {
                 int bitpos = fields[fieldName].position + i;
