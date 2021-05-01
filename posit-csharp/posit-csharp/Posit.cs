@@ -22,7 +22,7 @@ namespace Unum
 
         public Posit(int width, int es)
         {
-            if (es < 1 || es >= width)
+            if (es < 0 || es >= width)
                 throw new System.ArgumentException(string.Format("es={0} parameter cannot be less than 1 or more or equal to width={1}", es, width));
 
             this.es = es;
@@ -110,8 +110,16 @@ namespace Unum
             {
                 regime = -bitLattice.GetFieldLength(RegimeField);
             }
-            exponent = (int)bitLattice.GetUint(ExponentField);
-            fraction = (int)bitLattice.GetUint(FractionField);
+
+            if (bitLattice.HasField(ExponentField))
+                exponent = (int)bitLattice.GetUint(ExponentField);
+            else
+                exponent = 0;
+
+            if (bitLattice.HasField(FractionField))
+                fraction = (int)bitLattice.GetUint(FractionField);
+            else
+                fraction = 0;
         }
 
         public void Decode(BitArray bitArray)
@@ -138,7 +146,8 @@ namespace Unum
 
             int exponentSize = Math.Min(pos, es);
             int exponentPosition = pos - exponentSize;
-            bl.AddField(ExponentField, exponentPosition, exponentSize);
+            if (exponentSize > 0)
+                bl.AddField(ExponentField, exponentPosition, exponentSize);
             pos = exponentPosition;
 
             if (pos > 0)

@@ -92,6 +92,11 @@ namespace Unum
             return new BitArray(data);
         }
 
+        public bool HasField(string fieldName)
+        {
+            return fields.ContainsKey(fieldName);
+        }
+
         public int GetFieldPosition(string fieldName)
         {
             return fields[fieldName].position;

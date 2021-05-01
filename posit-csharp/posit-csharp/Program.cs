@@ -28,8 +28,8 @@ namespace posit_csharp
 
             Console.WriteLine(bitLattice);
             Console.WriteLine();
-
-            Posit p = new Posit(32, 8);
+            int es = 0;
+            Posit p = new Posit(32, es);
             p.IntSign = 1;
             p.regime = 4;
             p.exponent = 17;
@@ -39,7 +39,7 @@ namespace posit_csharp
             Console.WriteLine(pbl);
             BitArray pbr = pbl.ToBitArray();
 
-            Posit p2 = new Posit(pbr, 8);
+            Posit p2 = new Posit(pbr, es);
             BitLattice pbl2 = p2.Encode();
             Console.WriteLine(pbl2);
 
