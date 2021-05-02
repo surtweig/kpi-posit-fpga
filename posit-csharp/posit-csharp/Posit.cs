@@ -172,6 +172,7 @@ namespace Unum
 
         private void fromFloat(float number)
         {
+            inexact = false;
             byte[] data = BitConverter.GetBytes(number);
             BitLattice fbits = new BitLattice(data);
 
@@ -220,6 +221,51 @@ namespace Unum
             //pbits.AddField(RegimeField, fbits.Size - 2, )
         }
 
+        public float ToFloat()
+        {
+            BitLattice fbits;
+            return ToFloat(out fbits);
+        }
+
+        public float ToFloat(out BitLattice fbits)
+        {
+            inexact = false;
+            fbits = new BitLattice(32);
+
+            // IEEE 754
+            int floatExpSize = 8;
+            int floatFracSize = 23;
+            fbits.AddField(SignField, fbits.Size - 1, 1);
+            fbits.AddField(ExponentField, fbits.Size - floatExpSize - 1, floatExpSize);
+            fbits.AddField(FractionField, 0, floatFracSize);
+
+            int floatExpBias = 1 - (2 << (fbits.GetFieldLength(ExponentField) - 2)); // -127
+            int floatExp = exponent + regime * (1 << es) - floatExpBias;
+
+            if (floatExp > (1 << floatExpSize)-1)
+            {
+                floatExp = (1 << floatExpSize) - 1;
+                inexact = true;
+            }
+
+            fbits.SetBool(SignField, sign);
+            fbits.SetUint(ExponentField, (uint)floatExp);
+
+            int fracResize = floatFracSize - FractionSize;
+            int floatFrac = fraction;
+            if (fracResize < 0)
+            {
+                inexact = true;
+                floatFrac >>= (-fracResize);
+            }
+            else if (fracResize > 0)
+                floatFrac <<= fracResize;
+
+            fbits.SetUint(FractionField, (uint)floatFrac);
+
+            return BitConverter.ToSingle(fbits.ToBytes());
+        }
+
         private int IntPow(int x, int pow)
         {
             int ret = 1;
@@ -255,11 +301,6 @@ namespace Unum
             return IntSign * Math.Pow(2.0, regime * twoPowES + exponent) * ffrac;
 
             //return 0f;
-        }
-
-        public float ToFloat()
-        {
-            return 0f;
         }
 
         public int ES { get { return es; } }

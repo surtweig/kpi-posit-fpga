@@ -25,7 +25,8 @@ namespace posit_csharp
 
         static void positTestFromFloat()
         {
-            float x = 11347935.15625f;
+            //float x = 0.15625f;
+            float x = -27.413f;
             BitLattice fbl = new BitLattice(BitConverter.GetBytes(x));
             fbl.AddField("S", 31, 1);
             fbl.AddField("Exponent", 23, 8);
@@ -37,7 +38,13 @@ namespace posit_csharp
             Posit p = new Posit(x, 3);
             BitLattice pbl = p.Encode();
             Console.WriteLine(pbl);
-            Console.WriteLine(string.Format("f = {0} p = {0}", x, p.CalculatedValue()));
+            Console.WriteLine();
+            BitLattice p2fbl;
+            float x2 = p.ToFloat(out p2fbl);
+            Console.WriteLine(p2fbl);
+            Console.WriteLine(string.Format("\nf = {0} p = {1} x2 = {2}", x, p.CalculatedValue(), x2));
+
+            
         }
 
         static void Main(string[] args)

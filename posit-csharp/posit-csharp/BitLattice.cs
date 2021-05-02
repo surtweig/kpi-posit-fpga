@@ -94,6 +94,13 @@ namespace Unum
             return new BitArray(data);
         }
 
+        public byte[] ToBytes()
+        {
+            byte[] bytes = new byte[data.Length];
+            Array.Copy(data, bytes, data.Length);
+            return bytes;
+        }
+
         public bool HasField(string fieldName)
         {
             return fields.ContainsKey(fieldName);
