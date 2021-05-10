@@ -9,7 +9,7 @@ namespace Unum
         public bool sign;
         public int regime;
         public int exponent;
-        public int fraction;
+        public uint fraction;
         
         private int es;
         private int size;
@@ -26,13 +26,13 @@ namespace Unum
         /// </summary>
         public bool InexactFlag { get { return inexact; } }
 
-        public Posit(int width, int es)
+        public Posit(int size, int es)
         {
-            if (es < 0 || es >= width)
-                throw new System.ArgumentException(string.Format("es={0} parameter cannot be less than 1 or more or equal to width={1}", es, width));
+            if (es < 0 || es >= size)
+                throw new System.ArgumentException(string.Format("es={0} parameter cannot be less than 1 or more or equal to width={1}", es, size));
 
             this.es = es;
-            this.size = width;
+            this.size = size;
 
             sign = false;
             regime = 0;
@@ -129,7 +129,7 @@ namespace Unum
                 exponent = 0;
 
             if (bitLattice.HasField(FractionField))
-                fraction = (int)bitLattice.GetUint(FractionField);
+                fraction = bitLattice.GetUint(FractionField);
             else
                 fraction = 0;
         }
@@ -186,7 +186,7 @@ namespace Unum
             //int floatSign = fbits.GetBool(SignField) ? 1 : -1;
             int floatExpBias = 1 - (2 << (fbits.GetFieldLength(ExponentField) - 2)); // -127
             int floatExp = (int)fbits.GetUint(ExponentField) + floatExpBias;
-            int floatFraction = (int)fbits.GetUint(FractionField);
+            uint floatFraction = fbits.GetUint(FractionField);
 
             sign = fbits.GetBool(SignField);
 
@@ -194,7 +194,7 @@ namespace Unum
             if (floatExp > 0)
                 regime = floatExp / twoPowES;
             else if (floatExp < 0)
-                regime = -(-floatExp + 1) / twoPowES;
+                regime = -(1 + (-floatExp - 1) / twoPowES);//-((-floatExp + 1) / twoPowES);
 
             exponent = floatExp - regime * twoPowES;
             fraction = floatFraction;
@@ -240,7 +240,7 @@ namespace Unum
             fbits.AddField(FractionField, 0, floatFracSize);
 
             int floatExpBias = 1 - (2 << (fbits.GetFieldLength(ExponentField) - 2)); // -127
-            int floatExp = exponent + regime * (1 << es) - floatExpBias;
+            int floatExp = FullExponent - floatExpBias;
 
             if (floatExp > (1 << floatExpSize)-1)
             {
@@ -252,7 +252,7 @@ namespace Unum
             fbits.SetUint(ExponentField, (uint)floatExp);
 
             int fracResize = floatFracSize - FractionSize;
-            int floatFrac = fraction;
+            uint floatFrac = fraction;
             if (fracResize < 0)
             {
                 inexact = true;
@@ -266,17 +266,131 @@ namespace Unum
             return BitConverter.ToSingle(fbits.ToBytes());
         }
 
-        private int IntPow(int x, int pow)
+        private static void decomposeFullExponent(int fullExp, int es, out int positExp, out int positRegime)
         {
-            int ret = 1;
-            while (pow != 0)
+            int twoPowES = 1 << es;
+            positRegime = 0;
+            if (fullExp > 0)
+                positRegime = fullExp / twoPowES;
+            else if (fullExp < 0)
+                positRegime = -(1 + (-fullExp - 1) / twoPowES);//-(-fullExp + 1) / twoPowES;
+
+            positExp = fullExp - positRegime * twoPowES;
+        }
+
+        private static int clz(uint n, int size)
+        {
+            uint m = 1u << (size - 1);
+            int c = 0;
+            while ( (m & n) == 0 )
             {
-                if ((pow & 1) == 1)
-                    ret *= x;
-                x *= x;
-                pow >>= 1;
+                m >>= 1;
+                ++c;
+                if (c == size)
+                    break;
             }
-            return ret;
+            return c;
+        }
+
+        private Posit add(Posit p)
+        {
+            int fullExp1 = FullExponent;
+            int fullExp2 = p.FullExponent;
+
+            uint fractionFirstBitMask1 = 1u << FractionSize;
+            uint fractionFirstBitMask2 = 1u << p.FractionSize;
+
+            int maxFractionSize = Math.Max(FractionSize, p.FractionSize);
+            ulong fraction1 = fractionFirstBitMask1 | fraction;// (fraction >> 1);
+            ulong fraction2 = fractionFirstBitMask2 | p.fraction;// (p.fraction >> 1);
+
+            // normalizing fractions
+            fraction1 <<= (maxFractionSize - FractionSize);
+            fraction2 <<= (maxFractionSize - p.FractionSize);
+
+            Posit r = new Posit(Size, ES);
+            int resultFullExp = 0;
+            ulong resultFraction = 0;
+
+            if (sign == p.sign)
+            {
+                if (fullExp1 > fullExp2)
+                {
+                    resultFullExp = fullExp1;
+                    fraction2 >>= fullExp1 - fullExp2;
+                }
+                else
+                {
+                    resultFullExp = fullExp2;
+                    fraction1 >>= fullExp2 - fullExp1;
+                }
+
+                resultFraction = (ulong)(fraction1 + fraction2);
+                if (resultFraction >> (maxFractionSize+1) > 0)
+                {
+                    resultFraction >>= 1;
+                    r.inexact = true;
+                    ++resultFullExp;
+                }
+
+                resultFraction = ((~(1u << maxFractionSize)) & resultFraction);
+
+                r.sign = sign;
+                r.fraction = (uint)resultFraction;
+                decomposeFullExponent(resultFullExp, ES, out r.exponent, out r.regime);
+                if (maxFractionSize > r.FractionSize)
+                    resultFraction >>= (maxFractionSize - r.FractionSize);
+                else if (r.FractionSize > maxFractionSize)
+                    resultFraction <<= (r.FractionSize - maxFractionSize);
+
+                r.fraction = (uint)resultFraction;
+            }
+            else
+            {
+                if (fullExp1 > fullExp2 || ((fullExp1 == fullExp2 && fraction1 > fraction2)))
+                {
+                    resultFullExp = fullExp1;
+                    r.sign = sign;
+                    fraction2 >>= fullExp1 - fullExp2;
+                    resultFraction = (ulong)(fraction1 - fraction2);
+                }
+                else
+                {
+                    r.sign = !sign;
+                    resultFullExp = fullExp2;
+                    fraction1 >>= fullExp2 - fullExp1;
+                    resultFraction = (ulong)(fraction2 - fraction1);
+                }
+
+                if (resultFraction == 0)
+                {
+                    r.sign = false;
+                    resultFullExp = 0;
+                }
+
+                int shift = clz((uint)resultFraction, maxFractionSize+1);
+                //if (shift > 0)
+                {
+                    resultFullExp -= shift;
+                    resultFraction <<= shift;
+                }
+                resultFraction = ((~(1u << maxFractionSize)) & resultFraction);
+
+                decomposeFullExponent(resultFullExp, ES, out r.exponent, out r.regime);
+                if (maxFractionSize > r.FractionSize)
+                    resultFraction >>= (maxFractionSize - r.FractionSize);
+                else if (r.FractionSize > maxFractionSize)
+                    resultFraction <<= (r.FractionSize - maxFractionSize);
+
+                r.fraction = (uint)resultFraction;
+            }
+
+            return r;
+        }
+
+        public static Posit operator+(Posit a, Posit b)
+        {
+            return a.add(b);
         }
 
         public double CalculatedValue()
@@ -294,11 +408,9 @@ namespace Unum
             if (IsInfinity)
                 return double.PositiveInfinity;
 
-            int twoPowES = 1 << es;
-
             double ffrac = 1.0 + fraction * Math.Pow(2.0, -FractionSize);
 
-            return IntSign * Math.Pow(2.0, regime * twoPowES + exponent) * ffrac;
+            return IntSign * Math.Pow(2.0, FullExponent) * ffrac;
 
             //return 0f;
         }
@@ -306,6 +418,7 @@ namespace Unum
         public int ES { get { return es; } }
         public int Size { get { return size; } }
 
+        public int FullExponent { get { return exponent + regime * (1 << es); } }
         public int ExponentSize { get { return Math.Clamp(Size - 2 - RegimeSize, 0, ES); } }
 
         public int RegimeSize
@@ -338,6 +451,11 @@ namespace Unum
         public bool IsInfinity
         {
             get { return sign && regime == 0 && exponent == 0 && fraction == 0; }
+        }
+
+        public override string ToString()
+        {
+            return string.Format("[({0}) reg={1} exp={2} frac={3}]", sign ? "-" : "+", regime, exponent, fraction);
         }
     }
 
