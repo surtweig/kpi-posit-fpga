@@ -2,11 +2,42 @@
 using Unum;
 using System.Collections.Generic;
 using System.Collections;
+using System.Drawing;
+using System.Text;
 
 namespace posit_csharp
 {
     class Program
     {
+        static void EStest()
+        {
+            
+        }
+
+        static void lossTest()
+        {
+            List<Posit> allPos = new List<Posit>();
+            Posit a = Posit.Zero(5, 1);
+            allPos.Add(a);
+            for (int i = 0; i < 16; ++i)
+            {
+                a = a.BitStep(1);
+                allPos.Add(a);
+            }
+        }
+
+        static void bitStepTest()
+        {
+            //Posit a = Posit.maxPos(5, 1);
+            //a.sign = true;
+            Posit a = Posit.Zero(5, 1);
+            for (int i = 0; i < 16; ++i)
+            {
+                Console.WriteLine(string.Format("{0}: {1} = float:{2} = calc:{3}", i, a, a.ToFloat(), a.CalculatedValue()));
+                a = a.BitStep(1);
+            }
+        }
+
         static void testDiv()
         {
             for (int i = -32; i < 33; ++i)
@@ -161,8 +192,17 @@ namespace posit_csharp
 
             //positTestCalcValue();
             //positTestFromFloat();
-            addTest();
+            //addTest();
             //testDiv();
+
+            //bitStepTest();
+
+            Posit p = new Posit(16, 4);
+            p.fraction = 14986789;
+            p.regime = -1;
+            p.exponent = 5;
+            Console.WriteLine(string.Format("{0} = {1}", p, p.CalculatedValue()));
+            Console.WriteLine(p.Encode());
         }
     }
 }

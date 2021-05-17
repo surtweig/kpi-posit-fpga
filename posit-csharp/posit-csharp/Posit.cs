@@ -14,6 +14,7 @@ namespace Unum
         private int es;
         private int size;
         private bool inexact;
+        private uint loss;
 
         public const string SignField = "Sign";
         public const string RegimeField = "Regime";
@@ -39,6 +40,7 @@ namespace Unum
             exponent = 0;
             fraction = 0;
             inexact = false;
+            loss = 0;
         }
 
         public Posit(BitArray bits, int es)
@@ -50,6 +52,7 @@ namespace Unum
             this.es = es;
             this.size = bits.Length;
             inexact = false;
+            loss = 0;
             Decode(bits);
         }
 
@@ -62,6 +65,7 @@ namespace Unum
             this.es = es;
             size = sizeof(float)*8;
             inexact = false;
+            loss = 0;
             fromFloat(value);
         }
 
@@ -221,6 +225,26 @@ namespace Unum
             //pbits.AddField(RegimeField, fbits.Size - 2, )
         }
 
+        public bool Validate()
+        {
+            if (exponent < 0)
+                return false;
+
+            if (RegimeSize + ExponentSize + FractionSize + 2 > Size)
+                return false;
+
+            int actualExponentSize = sizeof(uint) * 8 - clz((uint)exponent, sizeof(uint) * 8);
+            if (actualExponentSize > ExponentSize)
+                return false;
+
+            int actualFractionSize = sizeof(uint) * 8 - clz(fraction, sizeof(uint) * 8);
+            
+            if (actualFractionSize > FractionSize)
+                return false;
+
+            return true;
+        }
+
         public float ToFloat()
         {
             BitLattice fbits;
@@ -292,6 +316,11 @@ namespace Unum
             return c;
         }
 
+        private static uint shiftRightLoss(uint x, int shift)
+        {
+            return x & ((1u << shift) - 1);
+        }
+
         private Posit add(Posit p)
         {
             int fullExp1 = FullExponent;
@@ -317,19 +346,24 @@ namespace Unum
                 if (fullExp1 > fullExp2)
                 {
                     resultFullExp = fullExp1;
+                    r.loss += shiftRightLoss((uint)fraction2, fullExp1 - fullExp2);
+                    r.inexact = true;
                     fraction2 >>= fullExp1 - fullExp2;
                 }
                 else
                 {
                     resultFullExp = fullExp2;
+                    r.loss += shiftRightLoss((uint)fraction1, fullExp2 - fullExp1);
+                    r.inexact = true;
                     fraction1 >>= fullExp2 - fullExp1;
                 }
 
                 resultFraction = (ulong)(fraction1 + fraction2);
                 if (resultFraction >> (maxFractionSize+1) > 0)
                 {
-                    resultFraction >>= 1;
+                    r.loss += shiftRightLoss((uint)resultFraction, 1);
                     r.inexact = true;
+                    resultFraction >>= 1;
                     ++resultFullExp;
                 }
 
@@ -339,7 +373,11 @@ namespace Unum
                 r.fraction = (uint)resultFraction;
                 decomposeFullExponent(resultFullExp, ES, out r.exponent, out r.regime);
                 if (maxFractionSize > r.FractionSize)
+                {
+                    r.loss += shiftRightLoss((uint)resultFraction, maxFractionSize - r.FractionSize);
+                    r.inexact = true;
                     resultFraction >>= (maxFractionSize - r.FractionSize);
+                }
                 else if (r.FractionSize > maxFractionSize)
                     resultFraction <<= (r.FractionSize - maxFractionSize);
 
@@ -393,6 +431,102 @@ namespace Unum
             return a.add(b);
         }
 
+        public static Posit minPos(int size, int es)
+        {
+            Posit mp = new Posit(size, es);
+            mp.regime = 2 - size;
+            return mp;
+        }
+
+        public static Posit maxPos(int size, int es)
+        {
+            Posit mp = new Posit(size, es);
+            mp.regime = size - 2;
+            return mp;
+        }
+
+        public static Posit Infinity(int size, int es)
+        {
+            Posit inf = new Posit(size, es);
+            inf.sign = true;
+            inf.regime = 1 - size;
+            return inf;
+        }
+
+        public static Posit Zero(int size, int es)
+        {
+            Posit zero = new Posit(size, es);
+            zero.sign = false;
+            zero.regime = 1 - size;
+            return zero;
+        }
+
+        public Posit BitStep(int step)
+        {
+            if (sign)
+                step = -step;
+
+            if (IsZero)
+            {
+                if (step > 0)
+                    return Posit.minPos(Size, ES);
+                else if (step < 0)
+                {
+                    Posit nmp = minPos(Size, ES);
+                    nmp.sign = true;
+                    return nmp;
+                }    
+            }
+
+            long newFraction = fraction + step;
+            int carry = 0;
+
+            long maxFraction = 1 << FractionSize;
+            if (newFraction >= maxFraction)
+            {
+                newFraction -= maxFraction;
+                carry = 1;
+            }
+            else if (newFraction < 0)
+            {
+                newFraction += maxFraction;
+                carry = -1;
+            }
+           
+            Posit r = new Posit(Size, ES);
+            r.fraction = (uint)newFraction;
+            r.sign = sign;
+            r.regime = regime;
+            /*
+            int newExponent = FullExponent + carry;
+            decomposeFullExponent(newExponent, ES, out r.exponent, out r.regime);
+            */
+
+            int newExponent = exponent + carry;
+            int maxExponent = 1 << ExponentSize;
+            if (newExponent >= maxExponent)
+            {
+                newExponent -= maxExponent;
+                ++r.regime;
+            }
+            else if (newExponent < 0)
+            {
+                newExponent += maxExponent;
+                --r.regime;
+            }
+            r.exponent = newExponent;
+
+            if (r.regime > 0 && r.RegimeSize > r.Size-1)
+            {
+                return Posit.Infinity(r.size, r.es);
+            }
+            if (r.regime < 0 && r.RegimeSize > r.Size-1)
+            {
+                return Posit.Zero(r.size, r.es);
+            }
+            return r;
+        }
+        
         public double CalculatedValue()
         {
             /*
@@ -445,12 +579,12 @@ namespace Unum
 
         public bool IsZero
         {
-            get { return !sign && regime == 0 && exponent == 0 && fraction == 0; }
+            get { return !sign && regime == 1-size && exponent == 0 && fraction == 0; }
         }
 
         public bool IsInfinity
         {
-            get { return sign && regime == 0 && exponent == 0 && fraction == 0; }
+            get { return sign && regime == 1-size && exponent == 0 && fraction == 0; }
         }
 
         public override string ToString()
